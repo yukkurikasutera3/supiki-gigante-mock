@@ -4,11 +4,11 @@
   暗号化パラメータ:
     KDF        : PBKDF2-SHA256, iterations=210000, keylen=32B (AES-256)
     Cipher     : AES-256-GCM, tagLength=128bit (タグは暗号文の末尾に連結)
-    Salt (16B, base64) : zHSsSujUR5IEvntEE/OqzA==
-    IV   (12B, base64)   : k4fNb8Twpoq2OZ80
+    Salt (16B, base64) : OmztnvNrzsaFVGXaXYueYA==
+    IV   (12B, base64)   : VOgQaa+4lgHRMa9w
     配置: SALT_B64 / IV_B64 / ITER は下記 script 内の定数、暗号文は CT_B64 (base64)
     配信形式: 暗号文 base64 は ct_part1.txt / ct_part2.txt に分割して同梱し、ゲートが fetch で結合する
-    元ファイル: patch3_mock.html v7.0 (3843360 bytes) を丸ごと暗号化
+    元ファイル: patch3_mock.html v7.2 (4278655 bytes) を丸ごと暗号化
 -->
 <html lang="ja">
 <head>
@@ -72,8 +72,8 @@
 <script>
 "use strict";
 var ITER = 210000;
-var SALT_B64 = "zHSsSujUR5IEvntEE/OqzA==";
-var IV_B64 = "k4fNb8Twpoq2OZ80";
+var SALT_B64 = "OmztnvNrzsaFVGXaXYueYA==";
+var IV_B64 = "VOgQaa+4lgHRMa9w";
 var CT_B64 = null;
 async function loadCT() {
   if (CT_B64 !== null) return CT_B64;
