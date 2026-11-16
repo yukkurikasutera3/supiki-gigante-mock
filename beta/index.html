@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!--
+  CRｽﾋﾟｷ ベータ版 / パスワードゲート (StatiCrypt方式)
+  暗号化パラメータ:
+    KDF        : PBKDF2-SHA256, iterations=210000, keylen=32B (AES-256)
+    Cipher     : AES-256-GCM, tagLength=128bit (タグは暗号文の末尾に連結)
+    Salt (16B, base64) : WDQ4zf+F7xENV71wE15aOQ==
+    IV   (12B, base64)   : TA3mtPnicvjX3FsT
+    配置: SALT_B64 / IV_B64 / ITER は下記 script 内の定数、暗号文は CT_B64 (base64)
+    配信形式: 暗号文 base64 は ct_part1.txt / ct_part2.txt に分割して同梱し、ゲートが fetch で結合する
+    元ファイル: supiki_beta.html (15387649 bytes) を丸ごと暗号化
+-->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRｽﾋﾟｷ ベータ版</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    background: #0d0f14;
+    color: #e8e6df;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    width: 100%; max-width: 360px;
+    background: #161a22;
+    border: 1px solid #2a2f3a;
+    border-radius: 14px;
+    padding: 28px 22px 22px;
+    text-align: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .06em; color: #f0c75e; }
+  .sub { font-size: 13px; color: #9aa3b2; margin: 0 0 20px; }
+  label { display: block; font-size: 13px; color: #c8cdd6; text-align: left; margin-bottom: 6px; }
+  input[type="password"] {
+    width: 100%; font-size: 16px; padding: 12px;
+    background: #0d0f14; color: #fff;
+    border: 1px solid #3a4152; border-radius: 8px;
+    outline: none;
+  }
+  input[type="password"]:focus { border-color: #f0c75e; }
+  button {
+    width: 100%; margin-top: 14px; padding: 13px;
+    font-size: 16px; font-weight: bold;
+    background: #f0c75e; color: #1a1405;
+    border: none; border-radius: 8px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .err { min-height: 1.4em; font-size: 13px; color: #ff7a7a; margin: 12px 0 0; }
+  .note { font-size: 12px; color: #8b93a3; margin: 14px 0 0; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>CRｽﾋﾟｷ ベータ版</h1>
+    <p class="sub">共通仕様フル実装ベータ</p>
+    <form id="gateForm" autocomplete="off">
+      <label for="pw">パスワード</label>
+      <input type="password" id="pw" placeholder="パスワードを入力" autocomplete="current-password">
+      <button type="submit" id="openBtn">ひらく</button>
+      <p class="err" id="errMsg"></p>
+    </form>
+    <p class="note">音が出ます。音量にご注意ください。<br>パスワードは友達から聞いてね。</p>
+  </div>
+<script>
+"use strict";
+var ITER = 210000;
+var SALT_B64 = "WDQ4zf+F7xENV71wE15aOQ==";
+var IV_B64 = "TA3mtPnicvjX3FsT";
+var CT_B64 = null;
+async function loadCT() {
+  if (CT_B64 !== null) return CT_B64;
+  var t1 = await (await fetch("ct_part1.txt")).text();
+  var t2 = await (await fetch("ct_part2.txt")).text();
+  CT_B64 = (t1 + t2).replace(/\s+/g, "");
+  return CT_B64;
+}
+function b64ToBytes(s) {
+  var bin = atob(s.replace(/\s+/g, ""));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+async function tryOpen(pw) {
+  var enc = new TextEncoder();
+  var keyMaterial = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  var key = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: b64ToBytes(SALT_B64), iterations: ITER, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false, ["decrypt"]
+  );
+  var plainBuf = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64ToBytes(IV_B64), tagLength: 128 },
+    key, b64ToBytes(await loadCT())
+  );
+  return new TextDecoder("utf-8").decode(plainBuf);
+}
+document.getElementById("gateForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  var err = document.getElementById("errMsg");
+  var btn = document.getElementById("openBtn");
+  var pw = document.getElementById("pw").value;
+  err.textContent = "";
+  if (!pw) { err.textContent = "パスワードを入力してください"; return; }
+  if (!crypto || !crypto.subtle) { err.textContent = "この環境では開けません（HTTPSで開いてください）"; return; }
+  btn.disabled = true; btn.textContent = "ひらいてます…";
+  try {
+    var html = await tryOpen(pw);
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (ex) {
+    err.textContent = "パスワードが違います";
+    btn.disabled = false; btn.textContent = "ひらく";
+    document.getElementById("pw").select();
+  }
+});
+document.getElementById("pw").focus();
+</script>
+</body>
+</html>
